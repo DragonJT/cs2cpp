@@ -1,0 +1,23 @@
+class Program {
+    static int Main() {
+        if(!glfwInit()){
+            return -1;
+        }
+
+        GLFWwindow window = glfwCreateWindow(640, 480, "Hello GLFW", null, null);
+        
+        if (!window) {
+            glfwTerminate();
+            return -1;
+        }
+        
+        glfwMakeContextCurrent(window);
+        while (!glfwWindowShouldClose(window)) {
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+        }
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return 0;
+    }
+}
