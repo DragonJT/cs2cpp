@@ -4,13 +4,14 @@ using System.IO.Compression;
 class CppLibrary
 {
     public string Name { get; set; } = "";
-    public string IncludePath { get; set; } = "";
-    public string LibPath { get; set; } = "";
+    public string? IncludePath { get; set; }
+    public string? LibPath { get; set; }
     public string[] LibFiles { get; set; } = [];
     public string DownloadUrl { get; set; } = "";
     public string ExtractSubdir { get; set; } = "";
     public bool UseLocalZipFromDownloads { get; set; } = false;
     public string[] CppFiles { get; set; } = [];
+    public string[] IncludeHeaders { get; set; } = [];
 
     public static CppLibrary Glfw(){
         return new CppLibrary
@@ -18,9 +19,10 @@ class CppLibrary
             Name = "glfw",
             DownloadUrl = "https://github.com/glfw/glfw/releases/download/3.3.8/glfw-3.3.8.bin.WIN64.zip",
             ExtractSubdir = "glfw",
-            IncludePath = "third_party/glfw/include",
-            LibPath = "third_party/glfw/lib-vc2022",
-            LibFiles = [ "glfw3.lib" ]
+            IncludePath = "include",
+            LibPath = "lib-vc2022",
+            LibFiles = [ "glfw3.lib" ],
+            IncludeHeaders = ["<GLFW/glfw3.h>"]
         };
     }
 
@@ -30,8 +32,33 @@ class CppLibrary
             Name = "glad",
             UseLocalZipFromDownloads = true,
             ExtractSubdir = "glad", 
-            IncludePath = "third_party/glad/include",
-            CppFiles = ["third_party/glad/src/glad.c"]
+            IncludePath = "include",
+            CppFiles = ["src/glad.c"],
+            IncludeHeaders = ["<glad/glad.h>"]
+        };
+    }
+
+    public static CppLibrary ImGUIDocking(){
+        return new CppLibrary{
+            Name = "imgui",
+            DownloadUrl = "https://github.com/ocornut/imgui/archive/refs/heads/docking.zip",
+            ExtractSubdir = "imgui-docking",
+            IncludePath = "",
+            CppFiles = 
+            [
+                "imgui.cpp",
+                "imgui_draw.cpp",
+                "imgui_widgets.cpp",
+                "imgui_tables.cpp",
+                "backends/imgui_impl_glfw.cpp",
+                "backends/imgui_impl_opengl3.cpp"
+            ],
+            IncludeHeaders = 
+            [
+                "<imgui.h>",
+                "<backends/imgui_impl_glfw.h>",
+                "<backends/imgui_impl_opengl3.h>"
+            ]
         };
     }
 }
@@ -96,25 +123,38 @@ static class PackageManager{
 
     static string BuildIncludeFlags(CppLibrary[] libs)
     {
-        return string.Join(" ", libs
-            .Where(lib => !string.IsNullOrEmpty(lib.IncludePath))
-            .Select(lib => $"/I ../{lib.IncludePath} ^\n"));
+        List<string> includePaths = [];
+        foreach(var lib in libs){
+            if(lib.IncludePath != null){
+                includePaths.Add($"/I ../third_party/{lib.ExtractSubdir}/{lib.IncludePath} ^\n");
+            }
+        }
+        return string.Join(" ", includePaths);
     }
 
     static string BuildLinkFlags(CppLibrary[] libs)
     {
-        var libPaths = libs.Where(l => !string.IsNullOrEmpty(l.LibPath))
-                        .Select(p => p.LibPath);
-        var libFiles = libs.SelectMany(l => l.LibFiles);
-
-        var paths = string.Join(" ", libPaths.Select(p => $"/LIBPATH:../{p} ^\n"));
-        var files = string.Join(" ", libFiles);
-
-        return $"{paths} {files}";
+        string libPaths = "";
+        string libFiles = "";
+        foreach(var lib in libs){
+            if(lib.LibPath != null){
+                libPaths += $"/LIBPATH:../third_party/{lib.ExtractSubdir}/{lib.LibPath} ^\n";
+            }
+            foreach(var f in lib.LibFiles){
+                libFiles += f+" ";
+            }
+        }
+        return libPaths + libFiles;
     }
 
     static string BuildCppFiles(CppLibrary[] libs){
-        return string.Join(" ", libs.SelectMany(l => l.CppFiles).Select(c=>$"../{c}"));
+        string cppFiles = "";
+        foreach(var lib in libs){
+            foreach(var f in lib.CppFiles){
+                cppFiles += $"../third_party/{lib.ExtractSubdir}/{f} ^\n";
+            }
+        }
+        return cppFiles;
     }
 
     public static void Build(CppLibrary[] libs){
@@ -129,8 +169,8 @@ static class PackageManager{
 pushd build
 
 cl /nologo /EHsc /MD ^
-  {includeFlags} ..\build\out.cpp {cppFiles} ^
-  /Fe:program.exe ^
+  {includeFlags} ../build/out.cpp ^
+  {cppFiles} /Fe:program.exe ^
   /link ^
   {linkFlags} user32.lib gdi32.lib shell32.lib opengl32.lib
 

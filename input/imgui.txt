@@ -1,0 +1,102 @@
+
+[CppPtr] class GLFWwindow {}
+[CppPtr] class ImGuiViewport {}
+[CppPtr] class ImGuiFont {}
+[CppAnd] 
+class ImGuiIO {
+    ImGuiFont Fonts;
+}
+[Cpp] class ImGuiID {}
+[Cpp] class ImGuiWindowFlags {}
+[CppNamespace] class ImGui {}
+
+class Program {
+    static int Main(){
+        // Init GLFW
+        if (!glfwInit())
+            return -1;
+
+        // Create window
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        GLFWwindow window = glfwCreateWindow(1280, 720, "ImGui Docking", null, null);
+        if (!window) return -1;
+        glfwMakeContextCurrent(window);
+        glfwSwapInterval(1); // Enable vsync
+
+        // Init GLAD
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+            return -1;
+
+        // Init ImGui
+        IMGUI_CHECKVERSION();
+        ImGui.CreateContext();
+        ImGuiIO io = ImGui.GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+        io.Fonts.AddFontFromFileTTF("../Roboto-Medium.ttf", 40.0f);
+        ImGui.StyleColorsDark();
+
+        // Setup backends
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplOpenGL3_Init("#version 330");
+
+        while (!glfwWindowShouldClose(window))
+        {
+            glfwPollEvents();
+
+            // Start ImGui frame
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui.NewFrame();
+
+            // Create full-screen docking space
+            ImGuiViewport viewport = ImGui.GetMainViewport();
+            ImGui.SetNextWindowPos(viewport.WorkPos);
+            ImGui.SetNextWindowSize(viewport.WorkSize);
+            ImGui.SetNextWindowViewport(viewport.ID);
+
+            ImGuiWindowFlags dockspace_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking |
+                                            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                                            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                            ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+            ImGui.Begin("DockSpace", null, dockspace_flags);
+            ImGuiID dockspace_id = ImGui.GetID("MyDockSpace");
+            ImGui.DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), 0);
+            ImGui.End();
+
+            // Example window
+            ImGui.Begin("Hello, Docked!");
+            ImGui.Text("This window is dockable.");
+            ImGui.End();
+
+            // Render
+            ImGui.Render();
+            int w, h;
+            glfwGetFramebufferSize(window, ref w, ref h);
+            glViewport(0, 0, w, h);
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui.GetDrawData());
+
+            // Multi-viewport support
+            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            {
+                GLFWwindow backup = glfwGetCurrentContext();
+                ImGui.UpdatePlatformWindows();
+                ImGui.RenderPlatformWindowsDefault();
+                glfwMakeContextCurrent(backup);
+            }
+
+            glfwSwapBuffers(window);
+        }
+
+        // Cleanup
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui.DestroyContext();
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return 0;
+    }
+}
